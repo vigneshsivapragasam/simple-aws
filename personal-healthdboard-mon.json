@@ -1,0 +1,89 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Personal Health Dashboard Monitor",
+    "Parameters":
+    {
+        "Eventrulestate":
+        {
+            "Type": "String",
+            "Default": "ENABLED",
+            "Description": "Enable or Disable Event Rules",
+            "AllowedValues": ["ENABLED", "DISABLED"]
+        },
+        "Targetemail":
+        {
+            "Type": "String",
+            "Description": "Email to send SNS topics to",
+            "AllowedPattern": "^[\\x20-\\x45]?[\\w-\\+]+(\\.[\\w]+)*@[\\w-]+(\\.[\\w]+)*(\\.[a-z]{2,})$",
+            "ConstraintDescription": "must be a valid email address"
+        }
+    },
+    "Resources":
+    {
+
+        "PersonalHealthDashboardRule":
+        {
+            "Type": "AWS::Events::Rule",
+            "Properties":
+            {
+                "Description": "Personal Health Dashboard Monitor",
+                "EventPattern":
+                {
+                    "source": [
+                        "aws.health"
+                    ]
+                },
+                "State":
+                {
+                    "Ref": "Eventrulestate"
+                },
+                "Targets": [
+                {
+                    "Arn":
+                    {
+                        "Ref": "TargetSNSFunction"
+                    },
+                    "Id": "HealthTopic"
+                }]
+            }
+        },
+
+        "TargetSNSFunction":
+        {
+            "Type": "AWS::SNS::Topic",
+            "Properties":
+            {
+                "DisplayName": "Health-Dashboard-Monitor",
+                "Subscription":[
+                    {"Endpoint": {"Ref": "Targetemail"}, "Protocol": "email"}                    
+                ],
+                "TopicName": "Health-Dashboard-Monitor"
+
+            }
+        },
+
+        "TargetSNSPolicy":
+        {
+            "Type" : "AWS::SNS::TopicPolicy",
+            "Properties" :
+                {
+                    "PolicyDocument" : {
+                                "Id" : "healthdashboard",
+                                "Version" : "2012-10-17",
+                                "Statement" : [ {
+                                "Sid" : "healthdashboard",
+                                "Effect" : "Allow",
+                                "Principal" : {
+                                    "Service" : "events.amazonaws.com"
+                                    },
+                                "Action" : "sns:Publish",
+                                "Resource" : {"Ref":"TargetSNSFunction"}
+                            } ]
+                },
+                "Topics" : [ 
+                    {"Ref":"TargetSNSFunction"}
+                 ]
+                }
+            }
+        }       
+}
