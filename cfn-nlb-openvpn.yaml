@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: An example of an external NLB stack
+Parameters:
+  VPCId:
+    Description: Please provide a VPC to deploy the solution into.
+    Type: AWS::EC2::VPC::Id
+  SubnetId:
+    Description: Please provide the public subnet id from the VPC chosen above.
+    Type: AWS::EC2::Subnet::Id
+  PrimaryIP:
+    Description: IP Address of primary instance
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})"
+    Type: String
+  CertificateARN:
+    Description: ARN of SSL Certificate
+    AllowedPattern: "arn:aws:acm:.*"
+    Type: String
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Network Configuration
+      Parameters:
+      - VPCId
+      - SubnetId
+      - PrimaryIP
+      - CertificateARN
+    ParameterLabels:
+      VPCId:
+        default: Target VPC for solution
+      SubnetId:
+        default: Primary Subnet
+      PrimaryIP:
+        default: Primary IP
+      CertificateARN:
+        default: ARN for SSL Certificate
+Resources:
+  EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NetworkLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Join ["-" , [!Ref 'AWS::StackName', nlb]]
+      Scheme: internet-facing
+      Type: network
+      SubnetMappings:
+      - AllocationId: !GetAtt EIP.AllocationId
+        SubnetId: !Ref SubnetId
+      IpAddressType: ipv4
+  NetworkLoadBalancerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Join ["-" , [!Ref 'AWS::StackName', targetgroup]]
+      Port: 1194
+      Protocol: UDP
+      VpcId: !Ref VPCId
+      HealthCheckEnabled: True
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPort: 22
+      HealthCheckProtocol: TCP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 60
+      Targets:
+        - Id: !Ref PrimaryIP
+          Port: 1194
+      TargetType: ip
+  NetworkLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NetworkLoadBalancerTargetGroup
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: '443'
+      Protocol: TLS
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      Certificates:
+        - CertificateArn: !Ref CertificateARN
